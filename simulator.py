@@ -26,7 +26,7 @@ class Agent(object):
 
     def set_state(self, new_state):
         # New state is at most the resource.
-        self.state = min(self.resource, self.state + new_state)
+        self.state = max(-1, min(self.resource, self.state + new_state))
 
 def generate_points(num_points):
     '''
@@ -68,6 +68,7 @@ def plot_points(G, pos, i):
 
     nx.draw_networkx(G, node_size=100, with_labels=False, pos=pos,
         node_color=[n.state for n in G.nodes], cmap='Reds')
+    print [n.state for n in G.nodes]
 
     plt.axis('off')
     plt.savefig('random_graph_%d.png' % i)
@@ -78,10 +79,9 @@ def main():
 
     pos = nx.spring_layout(G)
     plot_points(G, pos, 0)
-    for i in range(1, 100): # TODO: Number of iterations.
+    for i in range(10): # TODO: Number of iterations.
         transform(G)
-        if (i + 1) % 10 == 0:
-            plot_points(G, pos, i)
+        plot_points(G, pos, i)
 
 if __name__ == '__main__':
     main()
