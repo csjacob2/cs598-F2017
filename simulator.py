@@ -1,46 +1,87 @@
 import networkx as nx
 import numpy as np
+import matplotlib
+
+
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import pylab
+
+class Agent(object):
+    """An agent in the network. It has the following properties:
+
+    Attributes:
+        label: An int specifying the node number.
+        resource: A variable U(0, 1), the resource constraint of the agent.
+        state: A float, determining how much the agent is documenting.
+    """
+
+    def __init__(self, label):
+        """Return an Agent object whose resource is *resource* and state is
+        *state*."""
+        self.label = label
+        self.resource = np.random.random_sample()
+        # State is at most the resource.
+        self.state = min(self.resource, np.random.uniform(-1, 1))
+
+    def set_state(self, new_state):
+        # New state is at most the resource.
+        self.state = min(self.resource, self.state + new_state)
 
 def generate_points(num_points):
     '''
     Generates a specified number of points with two attributes in [0, 1].
     '''
-    G = nx.random_geometric_graph(num_points, 0.1) # TODO: 0.1 is the prob. of creating an edge.
+    # TODO: 0.05 is the probability of forming an edge.
+    G = nx.fast_gnp_random_graph(num_points, 0.05, seed=111111)
+
+    # Remap the nodes to Agent objects.
+    mapping = {}
+    for label in list(G.nodes):
+        mapping[label] = Agent(label)
+    G = nx.relabel_nodes(G, mapping)
+
     return G
 
 def transform(G):
     '''
     Transforms the graph for an iteration.
     '''
-    # Examples:
-    # G.add_edge(1, 2)
-    # G.remove_edge()
-    #G.add_edge(1,
-    print('transforming')
+    new_states = {}
+    # Compute the states.
+    for node in G:
+        # Get the state of the neighbors.
+        state_lst = [n.state for n in G.neighbors(node)]
+        degree = len(state_lst)
+        # Each neighbor gets a vote of 1 / degree multiplied by its state.
+        new_states[node] = sum([state / degree for state in state_lst])
 
-def plot_points(G):
+    # Set the states.
+    for node in new_states:
+        node.set_state(new_states[node])
+
+def plot_points(G, pos, i):
     '''
     Plots the graph.
     '''
-    pos=nx.get_node_attributes(G, 'pos')
     plt.figure(figsize=(8,8))
-    nx.draw_networkx_edges(G,pos,nodelist=G.nodes(), alpha=0.4)
-    nx.draw_networkx_nodes(G,pos,nodelist=G.nodes(), node_size=50)
 
-    plt.xlim(-0.05,1.05)
-    plt.ylim(-0.05,1.05)
+    nx.draw_networkx(G, node_size=100, with_labels=False, pos=pos,
+        node_color=[n.state for n in G.nodes], cmap='Reds')
+
     plt.axis('off')
-    plt.savefig('random_geometric_graph.png')
+    plt.savefig('random_graph_%d.png' % i)
     plt.show()
 
 def main():
-    G = generate_points(500) # TODO: Number of nodes.
+    G = generate_points(100) # TODO: Number of nodes.
 
-    for i in range(10000): # TODO: Number of iterations here.
+    pos = nx.spring_layout(G)
+    plot_points(G, pos, 0)
+    for i in range(1, 100): # TODO: Number of iterations.
         transform(G)
-
-    plot_points(G)
+        if (i + 1) % 10 == 0:
+            plot_points(G, pos, i)
 
 if __name__ == '__main__':
     main()
