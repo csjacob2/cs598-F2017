@@ -1,11 +1,23 @@
 import networkx as nx
 import numpy as np
 import matplotlib
-
+import os
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import pylab
+
+np.random.seed(0)
+
+# Setting variables.
+NUM_POINTS = 200 # Number of points in the graph.
+P = 0.05 # Probability of creating edge between two nodes in graph.
+MIN_STATE = -0.5 # Minimum state an agent can get to.
+RESOURCE = 'random' # Resource = 'random' or 1.
+
+DIR = './results/np_%d_p_%g_minstate_%g_res_%s' % (NUM_POINTS, P, MIN_STATE,
+    RESOURCE)
+if not os.path.exists(DIR):
+    os.makedirs(DIR)
 
 class Agent(object):
     """An agent in the network. It has the following properties:
@@ -20,28 +32,32 @@ class Agent(object):
         """Return an Agent object whose resource is *resource* and state is
         *state*."""
         self.label = label
-        self.resource = np.random.random_sample()
-        # State is at most the resource.
-        self.state = min(self.resource, np.random.uniform(-1, 1))
+
+        assert RESOURCE in [1, 'random']
+
+        if RESOURCE == 1:
+            self.resource = 1
+        elif RESOURCE == 'random':
+            self.resource = np.random.random_sample()
+
+        # State cannot exceed resource, but can be as low as MIN_STATE.
+        self.state = min(self.resource, np.random.uniform(MIN_STATE, 1))
 
     def set_state(self, new_state):
         # New state is at most the resource.
-        self.state = max(-1, min(self.resource, self.state + new_state))
+        self.state = max(MIN_STATE, min(self.resource, self.state + new_state))
 
-def generate_points(num_points):
+def generate_points():
     '''
     Generates a specified number of points with two attributes in [0, 1].
     '''
-    # TODO: 0.05 is the probability of forming an edge.
-    G = nx.fast_gnp_random_graph(num_points, 0.05, seed=111111)
+    G = nx.fast_gnp_random_graph(NUM_POINTS, P, seed=0)
 
     # Remap the nodes to Agent objects.
     mapping = {}
     for label in list(G.nodes):
         mapping[label] = Agent(label)
-    G = nx.relabel_nodes(G, mapping)
-
-    return G
+    return nx.relabel_nodes(G, mapping)
 
 def transform(G):
     '''
@@ -71,15 +87,16 @@ def plot_points(G, pos, i):
     print [n.state for n in G.nodes]
 
     plt.axis('off')
-    plt.savefig('random_graph_%d.png' % i)
+    plt.savefig('%s/random_graph_%d.png' % (DIR, i))
     plt.show()
 
 def main():
-    G = generate_points(100) # TODO: Number of nodes.
+
+    G = generate_points()
 
     pos = nx.spring_layout(G)
     plot_points(G, pos, 0)
-    for i in range(10): # TODO: Number of iterations.
+    for i in range(15):
         transform(G)
         plot_points(G, pos, i)
 
