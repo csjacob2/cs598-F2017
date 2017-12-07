@@ -6,23 +6,20 @@ import os
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-np.random.seed(0)
+np.random.seed(111)
 
 # Setting variables.
 NUM_POINTS = 200 # Number of points in the graph.
-P = 0.05 # Probability of creating edge between two nodes in graph.
-# MIN_STATE = 0 # Minimum state an agent can get to.
-RESOURCE = 'random' # Resource = 'random' or 1.
-BETA = 0.5
-DECAY = 1
+NUM_EDGES = 3 # Number of edges from new node to existing nodes.
+RESOURCE = 1 # Resource = 'random' or 1.
+BETA = 0.5 # How much an agent discounts the utility of documentation.
+DECAY = 0.1 # Fraction of documentation quality that decays each day.
 
 assert RESOURCE in [1, 'random']
 
 # Create results directory.
-# DIR = './results/np_%d_p_%g_minstate_%g_res_%s' % (NUM_POINTS, P, MIN_STATE,
-#     RESOURCE)
-DIR = './results/np_%d_p_%g_res_%s_b_%g_d_%g' % (NUM_POINTS, P, RESOURCE, BETA,
-    DECAY)
+DIR = './results/np_%d_ne_%g_res_%s_b_%g_d_%g' % (NUM_POINTS, NUM_EDGES,
+    RESOURCE, BETA, DECAY)
 if not os.path.exists(DIR):
     os.makedirs(DIR)
 
@@ -45,11 +42,8 @@ class Agent(object):
         elif RESOURCE == 'random':
             self.resource = np.random.random_sample()
 
-        # State cannot exceed resource, but can be as low as MIN_STATE.
-        # Randomly sample the state, since agents may be at various stages of
-        # documentation.
-        # self.state = min(self.resource, np.random.uniform(MIN_STATE, 1))
-        self.state = min(self.resource, np.random.uniform(0, 1))
+        # State cannot exceed resource.
+        self.state = np.random.uniform(0, self.resource)
 
     def set_state(self, new_state):
         # New state is at most the resource.
@@ -60,7 +54,7 @@ def generate_points():
     '''
     Generates a specified number of points with two attributes in [0, 1].
     '''
-    G = nx.fast_gnp_random_graph(NUM_POINTS, P, seed=0)
+    G = nx.barabasi_albert_graph(NUM_POINTS, NUM_EDGES, seed=111)
 
     # Remap the nodes to Agent objects.
     mapping = {}
@@ -84,50 +78,35 @@ def isWorking(node):
     lazy_utility = 0.1 - DECAY * node.state
 
     if work_utility > lazy_utility:
-        # node.set_state(node.state + 0.1)
         return True
     return False
-    # else:
-        # node.set_state(DECAY * node.state)
 
 def transform(G):
     '''
     Transforms the graph for an iteration.
     '''
-    # new_states = {}
     working_status = {}
     # Compute the states.
     for node in G:
-        # Get the state of the neighbors.
-        # state_lst = [n.state for n in G.neighbors(node)]
-        # Each neighbor gets a vote of 1 / degree multiplied by its state.
-        # new_states[node] = sum([state / degree for state in state_lst])
-        # pressure = sum([s for s in state_lst]) / len(state_lst)
-        # The agent can only choose to work if its neighbors are on average more
-        # than halfway done.
         working_status[node] = isWorking(node)
 
     for node in working_status:
         neighbor_working_status = [working_status[n] for n in G.neighbors(node)]
-
-        if sum(neighbor_working_status) >= 0.1 * 0.5 * len(neighbor_working_status):
+        if neighbor_working_status.count(True) >= 0.5 * len(neighbor_working_status):
             node.set_state(node.state + 0.1)
         else:
-            node.set_state(DECAY * node.state)
-
-    print [n.state for n in G.nodes()]
-    # # Set the states.
-    # for node in new_states:
-    #     node.set_state(new_states[node])
+            node.set_state((1 - DECAY) * node.state)
 
 def plot_points(G, pos, i):
     '''
     Plots the graph.
     '''
-    plt.figure(figsize=(8, 8))
+    norm = matplotlib.colors.Normalize(vmin=0, vmax=1)
+    cmap = matplotlib.cm.Reds
+    m = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
 
     nx.draw_networkx(G, node_size=100, with_labels=False, pos=pos,
-        node_color=[n.state for n in G.nodes], cmap='Reds')
+        node_color=[m.to_rgba(n.state) for n in G.nodes])
 
     plt.axis('off')
     plt.savefig('%s/random_graph_%d.png' % (DIR, i))
@@ -149,12 +128,12 @@ def main():
     # Get the layout of the graph.
     pos = nx.spring_layout(G)
 
-    plot_points(G, pos, 0)
-    fraction_documenting_lst += [get_fraction_documenting(G)]
     for i in range(15):
-        transform(G)
         plot_points(G, pos, i)
         fraction_documenting_lst += [get_fraction_documenting(G)]
+
+        transform(G)
+        # print [n.state for n in G.nodes()][:5]
 
     # Plot fraction of documenting agents at each iteration.
     plt.plot(fraction_documenting_lst)
