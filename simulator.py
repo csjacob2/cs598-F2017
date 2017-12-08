@@ -10,16 +10,21 @@ np.random.seed(111)
 
 # Setting variables.
 NUM_POINTS = 200 # Number of points in the graph.
-NUM_EDGES = 3 # Number of edges from new node to existing nodes.
+NUM_EDGES = 5 # Number of edges from new node to existing nodes.
 RESOURCE = 1 # Resource = 'random' or 1.
 BETA = 0.5 # How much an agent discounts the utility of documentation.
 DECAY = 0.1 # Fraction of documentation quality that decays each day.
+METHOD = 'nntu' # Perturbation method type.
+K = 40 # Top K. Only used for naive node degree methods.
 
 assert RESOURCE in [1, 'random']
+assert METHOD in ['none', 'nntu']
 
 # Create results directory.
-DIR = './results/np_%d_ne_%g_res_%s_b_%g_d_%g' % (NUM_POINTS, NUM_EDGES,
-    RESOURCE, BETA, DECAY)
+DIR = './results/np_%d_ne_%g_res_%s_b_%g_d_%g_m_%s' % (NUM_POINTS, NUM_EDGES,
+    RESOURCE, BETA, DECAY, METHOD)
+if METHOD != 'none':
+    DIR += '_k_%d' % K
 if not os.path.exists(DIR):
     os.makedirs(DIR)
 
@@ -90,9 +95,18 @@ def transform(G):
     for node in G:
         working_status[node] = isWorking(node)
 
+    # Force nodes to alter their working states for different methods.
+    if METHOD == 'nntu':
+        # Here, force top k nodes with highest degree to work.
+        deg_lst = nx.classes.function.degree(G)
+        top_k = sorted(deg_lst, key=lambda x:x[1], reverse=True)[:K]
+        for node, degree in top_k:
+            working_status[node] = True
+
     for node in working_status:
         neighbor_working_status = [working_status[n] for n in G.neighbors(node)]
-        if neighbor_working_status.count(True) >= 0.5 * len(neighbor_working_status):
+        # print neighbor_working_status
+        if working_status[node] or neighbor_working_status.count(True) >= 0.5 * len(neighbor_working_status):
             node.set_state(node.state + 0.1)
         else:
             node.set_state((1 - DECAY) * node.state)
@@ -115,10 +129,10 @@ def plot_points(G, pos, i):
 def get_fraction_documenting(G):
     '''
     Gets the fraction of agents who are documenting. Agents are documenting well
-    if their state is >= 0.9.
+    if their state is >= 0.5.
     '''
     node_lst = G.nodes
-    return len([n for n in node_lst if n.state >= 0.9]) / float(len(node_lst))
+    return len([n for n in node_lst if n.state >= 0.5]) / float(len(node_lst))
 
 def main():
     G = generate_points()
