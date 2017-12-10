@@ -20,20 +20,16 @@ NUM_POINTS = 200 # Number of points in the graph.
 NUM_EDGES = 3 # Number of edges from new node to existing nodes.
 RESOURCE = 1 # Resource = 'random' or 1.
 BETA = 0.5 # How much an agent discounts the utility of documentation.
-DECAY = 0.1 # Fraction of documentation quality that decays each day.
 
 AVERAGE_DOCUMENTATION_FEQUENCY = .5 # mean of possible results
-HIGH_QUALITY_THRESHOLD = .7 # mean of possible results
-NUM_INITIAL_HIGH_QUALITY = .05 # 1 = 100% .05 = 5%
+HIGH_QUALITY_THRESHOLD = .9 # defined arbitrarily
+NUM_INITIAL_HIGH_QUALITY = .398 # 1 = 100% .05 = 5%
 
 # Parameters that come from the survey results
-FLAT_DOCUMENTATION_COST = .39 # from question 1
-
-assert RESOURCE in [1, 'random']
+FLAT_DOCUMENTATION_COST = .54 # from question 1 originally, but tuned, average state should be about the same throughout the simulation from start to end.
 
 # Create results directory.
-DIR = './results/np_%d_ne_%g_res_%s_b_%g_d_%g' % (NUM_POINTS, NUM_EDGES,
-    RESOURCE, BETA, DECAY)
+DIR = './results/np_%d' % (NUM_POINTS)
 if not os.path.exists(DIR):
     os.makedirs(DIR)
 
@@ -52,6 +48,8 @@ class Employee(object):
         *state*."""
         self.label = label
         self.resource = max(0.1, np.random.random_sample()) # let's assume everyone has at least a tenth of the max resource
+
+        # put x one in each team
         if np.random.uniform(0,1) <= NUM_INITIAL_HIGH_QUALITY:
             self.state = np.random.uniform(HIGH_QUALITY_THRESHOLD, 1)
         else:
@@ -117,13 +115,12 @@ def complete_task(G, num_tasks):
         if node.label == selected_employee:
             #get teammate states
             teammate_states = [teammate.state for teammate in G.neighbors(node)]
-            teammate_average_state = sum(teammate_states) / len(teammate_states)
+            teammate_average_state = sum(teammate_states) / len(teammate_states) if len(teammate_states) > 0 else 0
 
             #update number of tasks completed
             node.update_tasks_completed()
 
-            #update number of tasks completed
-            task_completion_factor = node.tasks_completed / num_tasks
+            task_completion_factor = 1  / (0.1 + 0.9 * node.tasks_completed)
 
             #calculate cost
             cost = FLAT_DOCUMENTATION_COST
@@ -135,7 +132,7 @@ def complete_task(G, num_tasks):
             utility = reward - cost
 
             #update state
-            new_state = node.state + task_completion_factor + utility / 4
+            new_state = node.state + task_completion_factor * utility / 4
             new_state = 0 if new_state < 0 else new_state
             new_state = 1 if new_state > 1 else new_state
             node.set_state(new_state)
@@ -167,10 +164,10 @@ def get_fraction_documenting(G):
     node_lst = G.nodes
     return len([n for n in node_lst if n.state >= 0.9]) / float(len(node_lst))
 
-def plot_team_info(numWorkers, G):
+def plot_team_info(num_workers, G):
     degree_histogram = nx.degree_histogram(G)
     averageTeamSize = len(degree_histogram) / 2
-    logging.warn('the company has %s workers' % numWorkers)
+    logging.warn('the company has %s workers' % num_workers)
     logging.warn('with an average team size is %s' % averageTeamSize)
     plt.hist(degree_histogram)
     plt.savefig('%s/degree.png' % DIR)
@@ -223,22 +220,23 @@ def main():
     # Input parameters
     args = get_args()
     num_tasks = int(args.tasks) if args and args.tasks else DEFAULT_NUM_TASKS
-    numWorkers = int(args.workers) if args and args.workers else DEFAULT_NUM_WORKERS
+    num_workers = int(args.workers) if args and args.workers else DEFAULT_NUM_WORKERS
     fraction_documenting_lst = []
 
     # Initial configuration
-    G = generate_points(numWorkers, 0.1115)
+    G = generate_points(num_workers, 0.1115)
     #print [n.state for n in G.nodes()]
 
     # Get the layout of the graph.
     pos = nx.spring_layout(G,None,None,None,30,'weight',200)
 
     # Plot the team size
-    plot_team_info(numWorkers, G)
+    plot_team_info(num_workers, G)
 
     plot_points(G, pos, 0)
     plot_frequency = num_tasks * .1
 
+    initial_average_state = sum([node.state for node in G]) / num_workers
     #run the simulation
     for i in range(num_tasks):
         if i % plot_frequency == 0:
@@ -246,6 +244,10 @@ def main():
         #fraction_documenting_lst += [get_fraction_documenting(G)]
 
         complete_task(G, num_tasks)
+
+    final_average_state = sum([node.state for node in G]) / num_workers
+    print('initial average state = %s' % initial_average_state)
+    print('final average state = %s' % final_average_state)
 
 
     # Plot fraction of documenting agents at each iteration.
