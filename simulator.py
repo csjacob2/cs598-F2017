@@ -9,19 +9,21 @@ import matplotlib.pyplot as plt
 np.random.seed(111)
 
 # Setting variables.
-NUM_POINTS = 100 # Number of points in the graph.
-NUM_EDGES = 6 # Number of edges from new node to existing nodes.
+NUM_POINTS = 200 # Number of points in the graph.
+NUM_EDGES = 8 # Number of edges from new node to existing nodes.
 RESOURCE = 'random' # Resource = 'random' or 1.
-MAX_NUM_DOCS = 5 # Number of Documenters (maximum)
 
-BETA = 1 # How much an agent discounts the utility of documentation.
+MAX_NUM_DOCS = 8 # Number of Documenters (maximum)
+ENG_TO_DOC = 5 #Engineer to Documentor ratio
+
+BETA = 0.5 # How much an agent discounts the utility of documentation.
 DECAY = 0.1 # Fraction of documentation quality that decays each day.
 
 assert RESOURCE in [1, 'random']
 
 # Create results directory.
-DIR = './results/np_%d_ne_%g_res_%s_mnd_%d_b_%g_d_%s' % (NUM_POINTS, NUM_EDGES,
-    RESOURCE, MAX_NUM_DOCS, BETA, DECAY)
+DIR = './results/np_%d_ne_%g_res_%s_mnd_%d_etd_%d_b_%g_d_%s' % (NUM_POINTS, NUM_EDGES,
+    RESOURCE, MAX_NUM_DOCS, ENG_TO_DOC, BETA, DECAY)
 if not os.path.exists(DIR):
     os.makedirs(DIR)
 
@@ -49,11 +51,12 @@ class Agent(object):
         elif RESOURCE == 'random':
             self.resource = np.random.random_sample()
 
-        if self.agentType == 'D':
+        if self.agentType == 'D' or self.agentType == 'E':
             self.state = 1
         else:
             # State cannot exceed resource.
             self.state = np.random.uniform(0, self.resource)
+        #print (str(self.label) + ' ' + self.agentType + ' ' + str(self.state))
     
     def set_state(self, new_state):
         # New state is at most the resource.
@@ -74,7 +77,7 @@ def generate_points():
     until we run out of Agents/nodes
     we have a MAX_NUM_DOCS because a company may not have replacements for all workers
     '''
-    ENG_TO_DOC = 10 #Engineer to Documentor ratio
+    
     DOCUMENTERS = 0
     ENGINEERS = 0
     TOTAL_DOCS = 0
@@ -110,14 +113,15 @@ def isWorking(node):
            day its held off. The benefit is 0.1, since the agent continues to work
            on their current tasks. Lazy utility is more desireable, but it will be influenced
            by the social network in the transform function.
-    Documenters always return True (isWorking == isDocumenting)
+    Documenters/Engineers always return True (isWorking == isDocumenting)
     '''
 
     work_utility = BETA * 0.1 - 0.1
     lazy_utility = 0.1 - DECAY * node.state
-    print (str(work_utility) + ' > ' + str(lazy_utility))
 
-    if work_utility > lazy_utility or node.agentType == 'D':
+    if node.agentType == 'D' or node.agentType == 'E':
+        return True
+    elif work_utility > lazy_utility:
         return True
     return False
     
@@ -132,20 +136,20 @@ def transform(G):
         working_status[node] = isWorking(node)
 
     for node in working_status:
-        # can only change self working status if C type
+        #can only change self working status if C type
+        #D and E agents are always "working"
         #get working neighbour status in an array
 
         neighbor_working_status = [working_status[n] for n in G.neighbors(node)]
         neighbor_agent_type = [n.agentType for n in G.neighbors(node)]
 
-        if node.agentType == 'C' or node.agentType == 'E':
-            if neighbor_working_status.count(True) >= 0.5 * len(neighbor_working_status) or (neighbor_agent_type.count('D') >= 1):
-                #Documenters and working neighbours (E or C) directly influence positively to work
+        if node.agentType == 'C':
+            if neighbor_working_status.count(True) >= 0.5 * len(neighbor_working_status):
+                #working neighbours directly influence positively to work
                 node.set_state(node.state + 0.1)
             else:
-                #no neighbours or Ds working nearby, contributes to decays
+                #not enough neighbours working nearby, current node decays
                 node.set_state(node.state - DECAY)
-        
                 
 def plot_points(G, pos, i):
     '''
@@ -180,9 +184,8 @@ def main():
 
         fraction_documenting_lst += [get_fraction_documenting(G)]
 
-        print ('iteration ' + str(i))
         transform(G)
-        # print [n.state for n in G.nodes()][:5]
+        #print [n.state for n in G.nodes()][:5]
 
     # Plot fraction of documenting agents at each iteration.
     plt.plot(fraction_documenting_lst)
