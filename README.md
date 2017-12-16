@@ -11,10 +11,11 @@ For different network sizes, what is the minimum number of high degree nodes we 
 or  
 `python simulator_role_based.py -m none`
 
+// I don't think we can use DTRH. We can't peek at people's thresholds.  
+// perhaps record the numbers so we can perform significance tests.  
+// did nntu, dtrh, and rciw. Do the other stuff.  
 
-TODO: I don't think we can use DTRH. We can't peek at people's thresholds.  
-TODO: perhaps record the numbers so we can perform significance tests.  
-TODO: did nntu, dtrh, and rciw. Do the other stuff.  
+
 =======  
 ##Task Based Simulator  
 Ran with (Python 2.7.13)  
